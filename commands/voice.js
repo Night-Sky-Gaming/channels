@@ -3,7 +3,7 @@ const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('voice')
-		.setDescription('Posts the voice channel creation embed (Admin only)')
+		.setDescription('Posts the voice channel creation embed')
 		.setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 	async execute(interaction) {
 		// Create an embed for the voice channel creation
