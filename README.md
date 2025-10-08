@@ -1,2 +1,2 @@
 # channels
-Channel bot for Night Sky Gaming
+### Channel bot for Night Sky Gaming
