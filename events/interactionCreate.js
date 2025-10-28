@@ -103,27 +103,16 @@ module.exports = {
 						return;
 					}
 
-					// Find the user's current voice channel to get the parent category
-					const voiceChannel = member.voice.channel;
-					let parentCategory = null;
-
-					// Try to find the "Make a Voice Channel" channel to use its parent
-					const makeChannelVoice = guild.channels.cache.find(
-						channel => channel.name === '✨ Make a Voice Channel' && channel.type === ChannelType.GuildVoice,
+					// Find the "Voice channels" category
+					const voiceCategory = guild.channels.cache.find(
+						channel => channel.name.toLowerCase() === 'voice channels' && channel.type === ChannelType.GuildCategory,
 					);
-
-					if (makeChannelVoice) {
-						parentCategory = makeChannelVoice.parent;
-					}
-					else if (voiceChannel) {
-						parentCategory = voiceChannel.parent;
-					}
 
 					// Create the new voice channel
 					const newChannel = await guild.channels.create({
 						name: channelName,
 						type: ChannelType.GuildVoice,
-						parent: parentCategory,
+						parent: voiceCategory,
 						permissionOverwrites: [
 							{
 								id: member.id,
