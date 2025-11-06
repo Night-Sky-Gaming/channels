@@ -1,5 +1,10 @@
 const { Events, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ChannelType, PermissionFlagsBits } = require('discord.js');
 
+// Store pending voice channels with their deletion timeouts
+// Also track created channels for auto-deletion when empty
+const pendingChannels = new Map();
+const createdChannels = new Map(); // Tracks all created voice channels for auto-deletion
+
 module.exports = {
 	name: Events.InteractionCreate,
 	async execute(interaction) {
@@ -8,7 +13,7 @@ module.exports = {
 			const command = interaction.client.commands.get(interaction.commandName);
 
 			if (!command) {
-				console.error(`No command matching ${interaction.commandName} was found.`);
+				console.error(`[VOICE] No command matching ${interaction.commandName} was found.`);
 				return;
 			}
 
@@ -16,7 +21,7 @@ module.exports = {
 				await command.execute(interaction);
 			}
 			catch (error) {
-				console.error(`Error executing ${interaction.commandName}`);
+				console.error(`[VOICE] Error executing ${interaction.commandName}`);
 				console.error(error);
 				if (interaction.replied || interaction.deferred) {
 					await interaction.followUp({
@@ -126,6 +131,48 @@ module.exports = {
 						],
 					});
 
+					// Set up a 1-minute timeout to delete the channel if no one joins
+					const timeout = setTimeout(async () => {
+						try {
+							// Check if the channel still exists and is empty
+							const channelToCheck = await guild.channels.fetch(newChannel.id).catch(() => null);
+							
+							if (channelToCheck && channelToCheck.members.size === 0) {
+								await channelToCheck.delete('No one joined within 1 minute');
+								
+								// Send a DM to the creator
+								try {
+									await member.send(`Your voice channel **${channelName}** was deleted because no one joined it within 1 minute.`);
+								}
+								catch (dmError) {
+									console.log(`[VOICE] Could not DM ${member.user.tag} about channel deletion`);
+								}
+								
+								console.log(`[VOICE] Deleted empty channel "${channelName}" after 1 minute`);
+							}
+							
+							// Clean up the pending channel tracking
+							pendingChannels.delete(newChannel.id);
+						}
+						catch (error) {
+							console.error('[VOICE] Error during channel timeout deletion:', error);
+							pendingChannels.delete(newChannel.id);
+						}
+					}, 60000); // 1 minute
+
+					// Store the timeout and creator info
+					pendingChannels.set(newChannel.id, {
+						timeout: timeout,
+						creatorId: member.id,
+						channelName: channelName,
+					});
+
+					// Also track this channel for auto-deletion when everyone leaves
+					createdChannels.set(newChannel.id, {
+						creatorId: member.id,
+						channelName: channelName,
+					});
+
 					// Move the user to the new channel if they're in a voice channel
 					if (member.voice.channel) {
 						await member.voice.setChannel(newChannel);
@@ -137,10 +184,10 @@ module.exports = {
 						flags: MessageFlags.Ephemeral,
 					});
 
-					console.log(`Created voice channel "${channelName}" for ${member.user.tag}`);
+					console.log(`[VOICE] Created voice channel "${channelName}" for ${member.user.tag}`);
 				}
 				catch (error) {
-					console.error('Error creating voice channel:', error);
+					console.error('[VOICE] Error creating voice channel:', error);
 					await interaction.reply({
 						content: 'There was an error creating your voice channel. Please try again later.',
 						flags: MessageFlags.Ephemeral,
@@ -149,4 +196,6 @@ module.exports = {
 			}
 		}
 	},
+	pendingChannels, // Export the map so voiceStateUpdate can access it
+	createdChannels, // Export created channels map
 };
