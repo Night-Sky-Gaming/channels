@@ -27,20 +27,27 @@ module.exports = {
 		// Create the embed
 		const embed = new EmbedBuilder()
 			.setTitle('🎤 Create Your Voice Channel')
-			.setDescription('Click the button below to create a custom voice channel with your chosen name!')
+			.setDescription('Click a button below to create a voice channel!')
 			.setColor(0x5865F2)
 			.addFields(
-				{ name: 'How it works:', value: '1. Click the button\n2. Enter your channel name\n3. Your new channel gets created!' },
+				{ name: '🎨 Custom Name', value: 'Click "Create Voice Channel" to choose your own channel name!' },
+				{ name: '⚡ Quick Create', value: 'Click "Quick Create" to instantly create a channel with your username!' },
 			);
 
-		// Create the button
-		const button = new ButtonBuilder()
+		// Create the buttons
+		const customButton = new ButtonBuilder()
 			.setCustomId('create_voice_channel_general')
 			.setLabel('Create Voice Channel')
 			.setStyle(ButtonStyle.Primary)
 			.setEmoji('🎤');
 
-		const row = new ActionRowBuilder().addComponents(button);
+		const quickButton = new ButtonBuilder()
+			.setCustomId('quick_create_voice_channel')
+			.setLabel('Quick Create')
+			.setStyle(ButtonStyle.Success)
+			.setEmoji('⚡');
+
+		const row = new ActionRowBuilder().addComponents(customButton, quickButton);
 
 		try {
 			// Send the embed with the button

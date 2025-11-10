@@ -5,6 +5,34 @@ const { Events, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, Ac
 const pendingChannels = new Map();
 const createdChannels = new Map(); // Tracks all created voice channels for auto-deletion
 
+// Helper function to check if user already owns a channel
+async function getUserExistingChannel(guild, userId) {
+	// Find any existing channels owned by this user
+	for (const [channelId, channelData] of createdChannels.entries()) {
+		if (channelData.creatorId === userId) {
+			try {
+				const existingChannel = await guild.channels.fetch(channelId).catch(() => null);
+				if (existingChannel) {
+					return existingChannel;
+				}
+				else {
+					// Channel doesn't exist anymore, clean up
+					createdChannels.delete(channelId);
+					if (pendingChannels.has(channelId)) {
+						const pendingData = pendingChannels.get(channelId);
+						clearTimeout(pendingData.timeout);
+						pendingChannels.delete(channelId);
+					}
+				}
+			}
+			catch (error) {
+				console.error('[VOICE] Error checking existing channel:', error);
+			}
+		}
+	}
+	return null;
+}
+
 module.exports = {
 	name: Events.InteractionCreate,
 	async execute(interaction) {
@@ -39,8 +67,131 @@ module.exports = {
 		}
 		// Handle button interactions
 		else if (interaction.isButton()) {
-			if (interaction.customId.startsWith('create_voice_channel_')) {
-				// Handle the general voice channel creation button (from /makevoicechannel command)
+			if (interaction.customId.startsWith('create_voice_channel_') || interaction.customId === 'quick_create_voice_channel') {
+				// Handle quick create button
+				if (interaction.customId === 'quick_create_voice_channel') {
+					const guild = interaction.client.guilds.cache.first();
+
+					if (!guild) {
+						await interaction.reply({
+							content: 'Unable to find the server. Please try again later.',
+							flags: MessageFlags.Ephemeral,
+						});
+						return;
+					}
+
+					try {
+						const member = await guild.members.fetch(interaction.user.id);
+
+						if (!member) {
+							await interaction.reply({
+								content: 'Unable to find you in the server. Please try again later.',
+								flags: MessageFlags.Ephemeral,
+							});
+							return;
+						}
+
+						const channelName = `${member.user.username}'s channel`;
+
+						// Check if user already owns a channel
+						const existingChannel = await getUserExistingChannel(guild, member.id);
+						if (existingChannel) {
+							await interaction.reply({
+								content: `You already own a voice channel: ${existingChannel.toString()}\nYou cannot create a new channel until your existing one is deleted.`,
+								flags: MessageFlags.Ephemeral,
+							});
+							return;
+						}
+
+						// Find the "Voice channels" category
+						const voiceCategory = guild.channels.cache.find(
+							channel => channel.name.toLowerCase() === 'voice channels' && channel.type === ChannelType.GuildCategory,
+						);
+
+						// Create the new voice channel
+						const newChannel = await guild.channels.create({
+							name: channelName,
+							type: ChannelType.GuildVoice,
+							parent: voiceCategory,
+							permissionOverwrites: [
+								{
+									id: member.id,
+									allow: [
+										PermissionFlagsBits.Connect,
+										PermissionFlagsBits.Speak,
+										PermissionFlagsBits.ManageChannels,
+										PermissionFlagsBits.MoveMembers,
+									],
+								},
+							],
+						});
+
+						// Set up a 1-minute timeout to delete the channel if no one joins
+						const timeout = setTimeout(async () => {
+							try {
+								// Check if the channel still exists and is empty
+								const channelToCheck = await guild.channels.fetch(newChannel.id).catch(() => null);
+								
+								if (channelToCheck && channelToCheck.members.size === 0) {
+									await channelToCheck.delete('No one joined within 1 minute');
+									
+									// Send a DM to the creator
+									try {
+										await member.send(`Your voice channel **${channelName}** was deleted because no one joined it within 1 minute.`);
+									}
+									catch (dmError) {
+										console.log(`[VOICE] Could not DM ${member.user.tag} about channel deletion`);
+									}
+									
+									console.log(`[VOICE] Deleted empty channel "${channelName}" after 1 minute`);
+								}
+								
+								// Clean up the pending channel tracking
+								pendingChannels.delete(newChannel.id);
+							}
+							catch (error) {
+								console.error('[VOICE] Error during channel timeout deletion:', error);
+								pendingChannels.delete(newChannel.id);
+							}
+						}, 60000); // 1 minute
+
+						// Store the timeout and creator info
+						pendingChannels.set(newChannel.id, {
+							timeout: timeout,
+							creatorId: member.id,
+							channelName: channelName,
+						});
+
+						// Also track this channel for auto-deletion when everyone leaves
+						createdChannels.set(newChannel.id, {
+							creatorId: member.id,
+							channelName: channelName,
+						});
+
+						// Move the user to the new channel if they're in a voice channel
+						if (member.voice.channel) {
+							await member.voice.setChannel(newChannel);
+						}
+
+						// Reply to the button click with a link to the channel
+						await interaction.reply({
+							content: `Channel **${channelName}** created! ${newChannel.toString()}`,
+							flags: MessageFlags.Ephemeral,
+						});
+
+						console.log(`[VOICE] Quick created voice channel "${channelName}" for ${member.user.tag}`);
+					}
+					catch (error) {
+						console.error('[VOICE] Error quick creating voice channel:', error);
+						await interaction.reply({
+							content: 'There was an error creating your voice channel. Please try again later.',
+							flags: MessageFlags.Ephemeral,
+						});
+					}
+					return;
+				}
+
+				// Handle the general voice channel creation button (from /voice setup command)
 				if (interaction.customId === 'create_voice_channel_general') {
 					// Anyone can use this button - no user restriction
 				}
@@ -103,6 +254,16 @@ module.exports = {
 					if (!member) {
 						await interaction.reply({
 							content: 'Unable to find you in the server. Please try again later.',
+							flags: MessageFlags.Ephemeral,
+						});
+						return;
+					}
+
+					// Check if user already owns a channel
+					const existingChannel = await getUserExistingChannel(guild, member.id);
+					if (existingChannel) {
+						await interaction.reply({
+							content: `You already own a voice channel: ${existingChannel.toString()}\nYou cannot create a new channel until your existing one is deleted.`,
 							flags: MessageFlags.Ephemeral,
 						});
 						return;
@@ -178,9 +339,9 @@ module.exports = {
 						await member.voice.setChannel(newChannel);
 					}
 
-					// Reply to the modal submission
+					// Reply to the modal submission with a link to the channel
 					await interaction.reply({
-						content: `Channel **${channelName}** created!`,
+						content: `Channel **${channelName}** created! ${newChannel.toString()}`,
 						flags: MessageFlags.Ephemeral,
 					});
 
