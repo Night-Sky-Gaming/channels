@@ -7,17 +7,7 @@ module.exports = {
 		console.log(`Ready! Logged in as ${client.user.tag}`);
 
 		// Post the voice channel creation embed to the 'create-voice' channel
-		const guild = client.guilds.cache.first();
-		
-		if (!guild) {
-			console.log('[VOICE] No guild found');
-			return;
-		}
-
-		// Find the 'create-voice' text channel
-		const createVoiceChannel = guild.channels.cache.find(
-			channel => channel.name === 'create-voice' && channel.type === ChannelType.GuildText,
-		);
+		const createVoiceChannel = await client.channels.fetch('1434240508183711785').catch(() => null);
 
 		if (!createVoiceChannel) {
 			console.log('[VOICE] create-voice channel not found. Skipping embed post.');
