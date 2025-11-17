@@ -70,7 +70,7 @@ module.exports = {
 			if (interaction.customId.startsWith('create_voice_channel_') || interaction.customId === 'quick_create_voice_channel') {
 				// Handle quick create button
 				if (interaction.customId === 'quick_create_voice_channel') {
-					const guild = interaction.client.guilds.cache.first();
+					const guild = await interaction.client.guilds.fetch('1430038605518077964').catch(() => null);
 
 					if (!guild) {
 						await interaction.reply({
@@ -234,8 +234,8 @@ module.exports = {
 		else if (interaction.isModalSubmit()) {
 			if (interaction.customId === 'voice_channel_modal') {
 				const channelName = interaction.fields.getTextInputValue('channel_name_input').trim();
-				// Get the first guild the bot is in
-				const guild = interaction.client.guilds.cache.first();
+				// Get the specific guild by ID
+				const guild = await interaction.client.guilds.fetch('1430038605518077964').catch(() => null);
 
 				if (!guild) {
 					await interaction.reply({
