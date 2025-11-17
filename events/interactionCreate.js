@@ -103,13 +103,11 @@ module.exports = {
 							return;
 						}
 
-						// Find the "Voice channels" category
-						const voiceCategory = guild.channels.cache.find(
-							channel => channel.name.toLowerCase() === 'voice channels' && channel.type === ChannelType.GuildCategory,
-						);
+					// Find the "Voice channels" category
+					const voiceCategory = await guild.channels.fetch('1434238861994627132').catch(() => null);
 
-						// Create the new voice channel
-						const newChannel = await guild.channels.create({
+					// Create the new voice channel
+					const newChannel = await guild.channels.create({
 							name: channelName,
 							type: ChannelType.GuildVoice,
 							parent: voiceCategory,
@@ -269,12 +267,14 @@ module.exports = {
 						return;
 					}
 
-					// Find the "Voice channels" category
-					const voiceCategory = await guild.channels.fetch('1434238861994627132').catch(() => null);
+				// Find the "Voice channels" category
+				const voiceCategory = await guild.channels.fetch('1434238861994627132').catch(() => null);
 
-					// Create the new voice channel
-						type: ChannelType.GuildVoice,
-						parent: voiceCategory,
+				// Create the new voice channel
+				const newChannel = await guild.channels.create({
+					name: channelName,
+					type: ChannelType.GuildVoice,
+					parent: voiceCategory,
 						permissionOverwrites: [
 							{
 								id: member.id,
