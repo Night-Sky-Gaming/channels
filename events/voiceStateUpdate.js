@@ -37,15 +37,6 @@ module.exports = {
 						// Delete the channel
 						await channel.delete('All users left the channel');
 						
-						// Send a DM to the creator
-						try {
-							const creator = await oldState.guild.members.fetch(channelData.creatorId);
-							await creator.send(`Your voice channel **${channelData.channelName}** was deleted because everyone left.`);
-						}
-						catch (dmError) {
-							console.log(`[VOICE] Could not DM creator about channel deletion (everyone left)`);
-						}
-						
 						console.log(`[VOICE] Deleted empty channel "${channelData.channelName}" - everyone left`);
 						
 						// Clean up tracking
