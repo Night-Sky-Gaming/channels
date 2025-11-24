@@ -36,7 +36,11 @@ module.exports = {
 						.setDescription('The user limit (0 for no limit)')
 						.setRequired(true)
 						.setMinValue(0)
-						.setMaxValue(99))),
+						.setMaxValue(99)))
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('lock')
+				.setDescription('Lock your voice channel to prevent new users from joining')),
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();
 
@@ -256,6 +260,60 @@ module.exports = {
 				console.error('[VOICE] Error setting user limit:', error);
 				await interaction.reply({
 					content: 'Failed to set the user limit. Please try again later.',
+					flags: MessageFlags.Ephemeral,
+				});
+			}
+		}
+		else if (subcommand === 'lock') {
+			// Get the maps from interactionCreate
+			const interactionCreateModule = require('../events/interactionCreate.js');
+			const createdChannels = interactionCreateModule.createdChannels;
+
+			// Check if user is in a voice channel
+			if (!interaction.member.voice.channel) {
+				await interaction.reply({
+					content: 'You must be in a voice channel to use this command!',
+					flags: MessageFlags.Ephemeral,
+				});
+				return;
+			}
+
+			const channelId = interaction.member.voice.channel.id;
+
+			// Check if this is a channel they created
+			if (!createdChannels.has(channelId)) {
+				await interaction.reply({
+					content: 'You can only lock channels that you created!',
+					flags: MessageFlags.Ephemeral,
+				});
+				return;
+			}
+
+			const channelData = createdChannels.get(channelId);
+			if (channelData.creatorId !== interaction.user.id) {
+				await interaction.reply({
+					content: 'You can only lock channels that you created!',
+					flags: MessageFlags.Ephemeral,
+				});
+				return;
+			}
+
+			try {
+				// Lock the channel by denying @everyone from connecting
+				await interaction.member.voice.channel.permissionOverwrites.edit(
+					interaction.guild.roles.everyone,
+					{ Connect: false }
+				);
+
+				await interaction.reply({
+					content: '🔒 Channel locked! No new users can join.',
+					flags: MessageFlags.Ephemeral,
+				});
+			}
+			catch (error) {
+				console.error('[VOICE] Error locking channel:', error);
+				await interaction.reply({
+					content: 'Failed to lock the channel. Please try again later.',
 					flags: MessageFlags.Ephemeral,
 				});
 			}
