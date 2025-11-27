@@ -1,4 +1,4 @@
-const { Events } = require('discord.js');
+const { Events, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder } = require('discord.js');
 
 module.exports = {
 	name: Events.VoiceStateUpdate,
@@ -7,6 +7,7 @@ module.exports = {
 		const interactionCreateModule = require('./interactionCreate.js');
 		const pendingChannels = interactionCreateModule.pendingChannels;
 		const createdChannels = interactionCreateModule.createdChannels;
+		const pendingOwnershipTransfers = interactionCreateModule.pendingOwnershipTransfers;
 
 		// Check if a user joined a voice channel
 		if (!oldState.channel && newState.channel) {
@@ -47,6 +48,66 @@ module.exports = {
 							const pendingData = pendingChannels.get(channelId);
 							clearTimeout(pendingData.timeout);
 							pendingChannels.delete(channelId);
+						}
+
+						// Clean up any pending ownership transfers
+						if (pendingOwnershipTransfers.has(channelId)) {
+							pendingOwnershipTransfers.delete(channelId);
+						}
+					}
+					else if (channel && channel.members.size > 0) {
+						// Channel is not empty, check if the owner left
+						const channelData = createdChannels.get(channelId);
+						
+						// Check if the user who left was the owner
+						if (oldState.member.id === channelData.creatorId) {
+							// Owner left but there are still people in the channel
+							console.log(`[VOICE] Channel owner left "${channelData.channelName}" with ${channel.members.size} members remaining`);
+							
+							// Get the list of remaining members
+							const remainingMembers = Array.from(channel.members.values())
+								.filter(member => !member.user.bot); // Exclude bots
+							
+							if (remainingMembers.length > 0) {
+								// Create a dropdown menu with the remaining members
+								const selectMenu = new StringSelectMenuBuilder()
+									.setCustomId(`transfer_ownership_${channelId}`)
+									.setPlaceholder('Select the new channel owner')
+									.addOptions(
+										remainingMembers.map(member => ({
+											label: member.user.username,
+											description: `Transfer ownership to ${member.user.tag}`,
+											value: member.id,
+										}))
+									);
+
+								const row = new ActionRowBuilder().addComponents(selectMenu);
+
+								const embed = new EmbedBuilder()
+									.setTitle('🔄 Channel Ownership Transfer')
+									.setDescription(`You left your voice channel **${channelData.channelName}**, but there are still ${remainingMembers.length} member(s) in it.\n\nPlease select a new owner from the dropdown below, or the channel will remain without an owner until everyone leaves.`)
+									.setColor(0xFFA500)
+									.setTimestamp();
+
+								// Send DM to the old owner
+								try {
+									await oldState.member.send({
+										embeds: [embed],
+										components: [row],
+									});
+
+									// Track this pending ownership transfer
+									pendingOwnershipTransfers.set(channelId, {
+										oldOwnerId: channelData.creatorId,
+										channelName: channelData.channelName,
+									});
+
+									console.log(`[VOICE] Sent ownership transfer DM to ${oldState.member.user.tag}`);
+								}
+								catch (dmError) {
+									console.error(`[VOICE] Could not DM ${oldState.member.user.tag} for ownership transfer:`, dmError);
+								}
+							}
 						}
 					}
 				}

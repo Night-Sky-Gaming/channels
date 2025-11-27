@@ -4,6 +4,7 @@ const { Events, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, Ac
 // Also track created channels for auto-deletion when empty
 const pendingChannels = new Map();
 const createdChannels = new Map(); // Tracks all created voice channels for auto-deletion
+const pendingOwnershipTransfers = new Map(); // Tracks ownership transfers when owner leaves
 
 // Helper function to check if user already owns a channel
 async function getUserExistingChannel(guild, userId) {
@@ -230,6 +231,114 @@ module.exports = {
 				await interaction.showModal(modal);
 			}
 		}
+		// Handle string select menu interactions
+		else if (interaction.isStringSelectMenu()) {
+			if (interaction.customId.startsWith('transfer_ownership_')) {
+				const channelId = interaction.customId.split('_')[2];
+				const newOwnerId = interaction.values[0];
+
+				// Check if this transfer is still pending
+				if (!pendingOwnershipTransfers.has(channelId)) {
+					await interaction.reply({
+						content: 'This ownership transfer is no longer valid.',
+						flags: MessageFlags.Ephemeral,
+					});
+					return;
+				}
+
+				const transferData = pendingOwnershipTransfers.get(channelId);
+
+				// Verify the person selecting is the old owner
+				if (interaction.user.id !== transferData.oldOwnerId) {
+					await interaction.reply({
+						content: 'Only the previous channel owner can transfer ownership.',
+						flags: MessageFlags.Ephemeral,
+					});
+					return;
+				}
+
+				// Check if the channel still exists
+				const guild = await interaction.client.guilds.fetch('1430038605518077964').catch(() => null);
+				if (!guild) {
+					await interaction.reply({
+						content: 'Unable to find the server.',
+						flags: MessageFlags.Ephemeral,
+					});
+					return;
+				}
+
+				const channel = await guild.channels.fetch(channelId).catch(() => null);
+				if (!channel) {
+					await interaction.reply({
+						content: 'This channel no longer exists.',
+						flags: MessageFlags.Ephemeral,
+					});
+					pendingOwnershipTransfers.delete(channelId);
+					createdChannels.delete(channelId);
+					return;
+				}
+
+				// Verify the new owner is still in the channel
+				const newOwner = await guild.members.fetch(newOwnerId).catch(() => null);
+				if (!newOwner) {
+					await interaction.reply({
+						content: 'The selected user could not be found.',
+						flags: MessageFlags.Ephemeral,
+					});
+					return;
+				}
+
+				if (!newOwner.voice.channel || newOwner.voice.channel.id !== channelId) {
+					await interaction.reply({
+						content: 'The selected user is no longer in the channel.',
+						flags: MessageFlags.Ephemeral,
+					});
+					return;
+				}
+
+				try {
+					// Update the channel data with the new owner
+					if (createdChannels.has(channelId)) {
+						const channelData = createdChannels.get(channelId);
+						channelData.creatorId = newOwnerId;
+						console.log(`[VOICE] Transferred ownership of "${channelData.channelName}" from ${interaction.user.tag} to ${newOwner.user.tag}`);
+					}
+
+					// Update channel permissions for the new owner
+					await channel.permissionOverwrites.create(newOwnerId, {
+						Connect: true,
+						Speak: true,
+						ManageChannels: true,
+						MoveMembers: true,
+					});
+
+					// Send DM to the new owner
+					try {
+						await newOwner.send(`You are now the owner of the voice channel **${transferData.channelName}**! You can use the /voice commands to manage it.`);
+					}
+					catch (dmError) {
+						console.log(`[VOICE] Could not DM ${newOwner.user.tag} about ownership transfer`);
+					}
+
+					// Clean up the pending transfer
+					pendingOwnershipTransfers.delete(channelId);
+
+					// Update the interaction message
+					await interaction.update({
+						content: `✅ Successfully transferred ownership of **${transferData.channelName}** to **${newOwner.user.tag}**!`,
+						embeds: [],
+						components: [],
+					});
+				}
+				catch (error) {
+					console.error('[VOICE] Error transferring channel ownership:', error);
+					await interaction.reply({
+						content: 'There was an error transferring ownership. Please try again.',
+						flags: MessageFlags.Ephemeral,
+					});
+				}
+			}
+		}
 		// Handle modal submissions
 		else if (interaction.isModalSubmit()) {
 			if (interaction.customId === 'voice_channel_modal') {
@@ -355,4 +464,5 @@ module.exports = {
 	},
 	pendingChannels, // Export the map so voiceStateUpdate can access it
 	createdChannels, // Export created channels map
+	pendingOwnershipTransfers, // Export pending ownership transfers map
 };
