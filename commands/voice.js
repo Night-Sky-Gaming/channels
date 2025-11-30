@@ -51,7 +51,11 @@ module.exports = {
 		.addSubcommand(subcommand =>
 			subcommand
 				.setName('lock')
-				.setDescription('Lock your voice channel to prevent new users from joining')),
+				.setDescription('Lock your voice channel to prevent new users from joining'))
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('unlock')
+				.setDescription('Unlock your voice channel to allow new users to join')),
 	async autocomplete(interaction) {
 		const focusedOption = interaction.options.getFocused(true);
 		
@@ -447,6 +451,60 @@ module.exports = {
 				console.error('[VOICE] Error locking channel:', error);
 				await interaction.reply({
 					content: 'Failed to lock the channel. Please try again later.',
+					flags: MessageFlags.Ephemeral,
+				});
+			}
+		}
+		else if (subcommand === 'unlock') {
+			// Get the maps from interactionCreate
+			const interactionCreateModule = require('../events/interactionCreate.js');
+			const createdChannels = interactionCreateModule.createdChannels;
+
+			// Check if user is in a voice channel
+			if (!interaction.member.voice.channel) {
+				await interaction.reply({
+					content: 'You must be in a voice channel to use this command!',
+					flags: MessageFlags.Ephemeral,
+				});
+				return;
+			}
+
+			const channelId = interaction.member.voice.channel.id;
+
+			// Check if this is a channel they created
+			if (!createdChannels.has(channelId)) {
+				await interaction.reply({
+					content: 'You can only unlock channels that you created!',
+					flags: MessageFlags.Ephemeral,
+				});
+				return;
+			}
+
+			const channelData = createdChannels.get(channelId);
+			if (channelData.creatorId !== interaction.user.id) {
+				await interaction.reply({
+					content: 'You can only unlock channels that you created!',
+					flags: MessageFlags.Ephemeral,
+				});
+				return;
+			}
+
+			try {
+				// Unlock the channel by allowing @everyone to connect
+				await interaction.member.voice.channel.permissionOverwrites.edit(
+					interaction.guild.roles.everyone,
+					{ Connect: null }
+				);
+
+				await interaction.reply({
+					content: '🔓 Channel unlocked! New users can now join.',
+					flags: MessageFlags.Ephemeral,
+				});
+			}
+			catch (error) {
+				console.error('[VOICE] Error unlocking channel:', error);
+				await interaction.reply({
+					content: 'Failed to unlock the channel. Please try again later.',
 					flags: MessageFlags.Ephemeral,
 				});
 			}
