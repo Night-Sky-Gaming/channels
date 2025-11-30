@@ -60,12 +60,18 @@ module.exports = {
 			const input = focusedOption.value.toLowerCase();
 			
 			try {
-				// Fetch members matching the input
-				const members = await interaction.guild.members.fetch({ query: input, limit: 25 });
+				// Use cached members for faster autocomplete
+				const cachedMembers = interaction.guild.members.cache;
 				
-				// Filter out bots and map to autocomplete choices
-				const choices = members
-					.filter(member => !member.user.bot)
+				// Filter cached members by input
+				const choices = cachedMembers
+					.filter(member => {
+						if (member.user.bot) return false;
+						const username = member.user.username.toLowerCase();
+						const nickname = member.nickname?.toLowerCase() || '';
+						const tag = member.user.tag.toLowerCase();
+						return username.includes(input) || nickname.includes(input) || tag.includes(input);
+					})
 					.map(member => ({
 						name: `${member.user.username}${member.nickname ? ` (${member.nickname})` : ''}`,
 						value: member.user.username,
@@ -76,7 +82,13 @@ module.exports = {
 			}
 			catch (error) {
 				console.error('[VOICE] Error in autocomplete:', error);
-				await interaction.respond([]);
+				// Silently fail for autocomplete
+				try {
+					await interaction.respond([]);
+				}
+				catch (e) {
+					// Interaction may have already expired
+				}
 			}
 		}
 	},
