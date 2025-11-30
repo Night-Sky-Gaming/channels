@@ -25,7 +25,18 @@ module.exports = {
 					option
 						.setName('username')
 						.setDescription('The username to block')
-						.setRequired(true)))
+						.setRequired(true)
+						.setAutocomplete(true)))
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('permit')
+				.setDescription('Allow a user to join your voice channel')
+				.addStringOption(option =>
+					option
+						.setName('username')
+						.setDescription('The username to permit')
+						.setRequired(true)
+						.setAutocomplete(true)))
 		.addSubcommand(subcommand =>
 			subcommand
 				.setName('limit')
@@ -41,6 +52,34 @@ module.exports = {
 			subcommand
 				.setName('lock')
 				.setDescription('Lock your voice channel to prevent new users from joining')),
+	async autocomplete(interaction) {
+		const focusedOption = interaction.options.getFocused(true);
+		
+		// Handle username autocomplete for reject and permit subcommands
+		if (focusedOption.name === 'username') {
+			const input = focusedOption.value.toLowerCase();
+			
+			try {
+				// Fetch members matching the input
+				const members = await interaction.guild.members.fetch({ query: input, limit: 25 });
+				
+				// Filter out bots and map to autocomplete choices
+				const choices = members
+					.filter(member => !member.user.bot)
+					.map(member => ({
+						name: `${member.user.username}${member.nickname ? ` (${member.nickname})` : ''}`,
+						value: member.user.username,
+					}))
+					.slice(0, 25); // Discord limits to 25 choices
+				
+				await interaction.respond(choices);
+			}
+			catch (error) {
+				console.error('[VOICE] Error in autocomplete:', error);
+				await interaction.respond([]);
+			}
+		}
+	},
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();
 
@@ -208,6 +247,88 @@ module.exports = {
 				console.error('[VOICE] Error blocking user:', error);
 				await interaction.editReply({
 					content: 'Failed to block the user. Please try again later.',
+				});
+			}
+		}
+		else if (subcommand === 'permit') {
+			// Defer the reply since searching members can take time
+			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+			// Get the username to permit
+			const username = interaction.options.getString('username').trim();
+
+			// Get the maps from interactionCreate
+			const interactionCreateModule = require('../events/interactionCreate.js');
+			const createdChannels = interactionCreateModule.createdChannels;
+
+			// Check if user is in a voice channel
+			if (!interaction.member.voice.channel) {
+				await interaction.editReply({
+					content: 'You must be in a voice channel to use this command!',
+				});
+				return;
+			}
+
+			const channelId = interaction.member.voice.channel.id;
+
+			// Check if this is a channel they created
+			if (!createdChannels.has(channelId)) {
+				await interaction.editReply({
+					content: 'You can only permit users to channels that you created!',
+				});
+				return;
+			}
+
+			const channelData = createdChannels.get(channelId);
+			if (channelData.creatorId !== interaction.user.id) {
+				await interaction.editReply({
+					content: 'You can only permit users to channels that you created!',
+				});
+				return;
+			}
+
+			try {
+				// Search for the user by username - fetch with query to be more efficient
+				const members = await interaction.guild.members.fetch({ query: username, limit: 10 });
+				
+				// If no results with query, try cache
+				let targetMember = members.first();
+				
+				if (!targetMember) {
+					// Try searching in cache as fallback
+					targetMember = interaction.guild.members.cache.find(member => 
+						member.user.username.toLowerCase().includes(username.toLowerCase()) ||
+						member.user.tag.toLowerCase().includes(username.toLowerCase()) ||
+						(member.nickname && member.nickname.toLowerCase().includes(username.toLowerCase()))
+					);
+				}
+
+				if (!targetMember) {
+					await interaction.editReply({
+						content: `Could not find a user matching "${username}". Try being more specific!`,
+					});
+					return;
+				}
+
+				// Remove the permission override for this user (allows them to connect)
+				const permissionOverwrite = interaction.member.voice.channel.permissionOverwrites.cache.get(targetMember.id);
+				
+				if (permissionOverwrite) {
+					await permissionOverwrite.delete();
+					await interaction.editReply({
+						content: `Permitted **${targetMember.user.tag}** to join your channel!`,
+					});
+				}
+				else {
+					await interaction.editReply({
+						content: `**${targetMember.user.tag}** was not blocked from your channel.`,
+					});
+				}
+			}
+			catch (error) {
+				console.error('[VOICE] Error permitting user:', error);
+				await interaction.editReply({
+					content: 'Failed to permit the user. Please try again later.',
 				});
 			}
 		}
