@@ -326,20 +326,14 @@ module.exports = {
 					return;
 				}
 
-				// Remove the permission override for this user (allows them to connect)
-				const permissionOverwrite = interaction.member.voice.channel.permissionOverwrites.cache.get(targetMember.id);
-				
-				if (permissionOverwrite) {
-					await permissionOverwrite.delete();
-					await interaction.editReply({
-						content: `Permitted **${targetMember.user.tag}** to join your channel!`,
-					});
-				}
-				else {
-					await interaction.editReply({
-						content: `**${targetMember.user.tag}** was not blocked from your channel.`,
-					});
-				}
+				// Grant explicit permission to connect (works even if channel is locked)
+				await interaction.member.voice.channel.permissionOverwrites.create(targetMember.id, {
+					Connect: true,
+				});
+
+				await interaction.editReply({
+					content: `Permitted **${targetMember.user.tag}** to join your channel!`,
+				});
 			}
 			catch (error) {
 				console.error('[VOICE] Error permitting user:', error);
