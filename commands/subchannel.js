@@ -86,10 +86,10 @@ module.exports = {
 				flags: MessageFlags.Ephemeral,
 			});
 
-			console.log(`[SUBCHANNEL] Created subchannel "${subchannelName}" below "${currentChannel.name}" for ${interaction.user.tag}`);
+			console.log(`[VOICE] Created subchannel "${subchannelName}" below "${currentChannel.name}" for ${interaction.user.tag}`);
 		}
 		catch (error) {
-			console.error('[SUBCHANNEL] Error creating subchannel:', error);
+			console.error('[VOICE] Error creating subchannel:', error);
 			await interaction.reply({
 				content: 'Failed to create the subchannel. Please try again later.',
 				flags: MessageFlags.Ephemeral,
