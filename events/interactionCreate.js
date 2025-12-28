@@ -146,6 +146,7 @@ module.exports = {
 						id: plusRole.id,
 						allow: [
 							PermissionFlagsBits.EmbedLinks,
+							PermissionFlagsBits.AttachFiles,
 						],
 					});
 				}
@@ -434,6 +435,7 @@ module.exports = {
 						id: plusRole.id,
 						allow: [
 							PermissionFlagsBits.EmbedLinks,
+							PermissionFlagsBits.AttachFiles,
 						],
 					});
 				}
