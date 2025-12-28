@@ -52,22 +52,38 @@ module.exports = {
 			const parentCategory = currentChannel.parent;
 			const currentPosition = currentChannel.position;
 
+			// Find the + role for embed permissions
+			const plusRole = interaction.guild.roles.cache.find(role => role.name === '+');
+			
+			// Build permission overwrites
+			const permissionOverwrites = [
+				{
+					id: interaction.user.id,
+					allow: [
+						PermissionFlagsBits.Connect,
+						PermissionFlagsBits.Speak,
+						PermissionFlagsBits.ManageChannels,
+						PermissionFlagsBits.MoveMembers,
+					],
+				},
+			];
+			
+			// Add + role permissions if the role exists
+			if (plusRole) {
+				permissionOverwrites.push({
+					id: plusRole.id,
+					allow: [
+						PermissionFlagsBits.EmbedLinks,
+					],
+				});
+			}
+
 			// Create the new voice subchannel
 			const subchannel = await interaction.guild.channels.create({
 				name: subchannelName,
 				type: ChannelType.GuildVoice,
 				parent: parentCategory,
-				permissionOverwrites: [
-					{
-						id: interaction.user.id,
-						allow: [
-							PermissionFlagsBits.Connect,
-							PermissionFlagsBits.Speak,
-							PermissionFlagsBits.ManageChannels,
-							PermissionFlagsBits.MoveMembers,
-						],
-					},
-				],
+				permissionOverwrites: permissionOverwrites,
 			});
 
 			// Move the subchannel to be directly below the current channel

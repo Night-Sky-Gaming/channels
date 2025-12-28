@@ -124,26 +124,42 @@ module.exports = {
 					// Find the "Voice channels" category
 					const voiceCategory = await guild.channels.fetch('1434238861994627132').catch(() => null);
 
-					// Create the new voice channel
-					const newChannel = await guild.channels.create({
-							name: channelName,
-							type: ChannelType.GuildVoice,
-							parent: voiceCategory,
-							permissionOverwrites: [
-								{
-									id: member.id,
-									allow: [
-										PermissionFlagsBits.Connect,
-										PermissionFlagsBits.Speak,
-										PermissionFlagsBits.ManageChannels,
-										PermissionFlagsBits.MoveMembers,
-									],
-								},
-							],
-						});
+				// Find the + role for embed permissions
+				const plusRole = guild.roles.cache.find(role => role.name === '+');
+				
+				// Build permission overwrites
+				const permissionOverwrites = [
+					{
+						id: member.id,
+						allow: [
+							PermissionFlagsBits.Connect,
+							PermissionFlagsBits.Speak,
+							PermissionFlagsBits.ManageChannels,
+							PermissionFlagsBits.MoveMembers,
+						],
+					},
+				];
+				
+				// Add + role permissions if the role exists
+				if (plusRole) {
+					permissionOverwrites.push({
+						id: plusRole.id,
+						allow: [
+							PermissionFlagsBits.EmbedLinks,
+						],
+					});
+				}
 
-						// Set up a 1-minute timeout to delete the channel if no one joins
-						const timeout = setTimeout(async () => {
+				// Create the new voice channel
+				const newChannel = await guild.channels.create({
+						name: channelName,
+						type: ChannelType.GuildVoice,
+						parent: voiceCategory,
+						permissionOverwrites: permissionOverwrites,
+					});
+
+					// Set up a 1-minute timeout to delete the channel if no one joins
+					const timeout = setTimeout(async () => {
 							try {
 								// Check if the channel still exists and is empty
 								const channelToCheck = await guild.channels.fetch(newChannel.id).catch(() => null);
@@ -396,22 +412,38 @@ module.exports = {
 				// Find the "Voice channels" category
 				const voiceCategory = await guild.channels.fetch('1434238861994627132').catch(() => null);
 
+				// Find the + role for embed permissions
+				const plusRole = guild.roles.cache.find(role => role.name === '+');
+				
+				// Build permission overwrites
+				const permissionOverwrites = [
+					{
+						id: member.id,
+						allow: [
+							PermissionFlagsBits.Connect,
+							PermissionFlagsBits.Speak,
+							PermissionFlagsBits.ManageChannels,
+							PermissionFlagsBits.MoveMembers,
+						],
+					},
+				];
+				
+				// Add + role permissions if the role exists
+				if (plusRole) {
+					permissionOverwrites.push({
+						id: plusRole.id,
+						allow: [
+							PermissionFlagsBits.EmbedLinks,
+						],
+					});
+				}
+
 				// Create the new voice channel
 				const newChannel = await guild.channels.create({
 					name: channelName,
 					type: ChannelType.GuildVoice,
 					parent: voiceCategory,
-						permissionOverwrites: [
-							{
-								id: member.id,
-								allow: [
-									PermissionFlagsBits.Connect,
-									PermissionFlagsBits.Speak,
-									PermissionFlagsBits.ManageChannels,
-									PermissionFlagsBits.MoveMembers,
-								],
-							},
-						],
+						permissionOverwrites: permissionOverwrites,
 					});
 
 					// Set up a 1-minute timeout to delete the channel if no one joins
