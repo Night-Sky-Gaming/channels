@@ -55,15 +55,58 @@ module.exports = {
 		.addSubcommand(subcommand =>
 			subcommand
 				.setName('unlock')
-				.setDescription('Unlock your voice channel to allow new users to join')),
+				.setDescription('Unlock your voice channel to allow new users to join'))
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('transfer')
+				.setDescription('Transfer ownership of your voice channel to another user')
+				.addStringOption(option =>
+					option
+						.setName('username')
+						.setDescription('The username to transfer ownership to')
+						.setRequired(true)
+						.setAutocomplete(true))),
 	async autocomplete(interaction) {
 		const focusedOption = interaction.options.getFocused(true);
 		
-		// Handle username autocomplete for reject and permit subcommands
+		// Handle username autocomplete for reject, permit, and transfer subcommands
 		if (focusedOption.name === 'username') {
+			const subcommand = interaction.options.getSubcommand();
 			const input = focusedOption.value.toLowerCase();
 			
 			try {
+				// For transfer command, only show users in the same voice channel
+				if (subcommand === 'transfer') {
+					const member = interaction.member;
+					
+					// Check if user is in a voice channel
+					if (!member.voice.channel) {
+						await interaction.respond([]);
+						return;
+					}
+					
+					// Get members in the same voice channel
+					const channelMembers = member.voice.channel.members;
+					
+					const choices = channelMembers
+						.filter(channelMember => {
+							if (channelMember.user.bot) return false;
+							if (channelMember.id === interaction.user.id) return false; // Don't include self
+							const username = channelMember.user.username.toLowerCase();
+							const nickname = channelMember.nickname?.toLowerCase() || '';
+							const tag = channelMember.user.tag.toLowerCase();
+							return username.includes(input) || nickname.includes(input) || tag.includes(input);
+						})
+						.map(channelMember => ({
+							name: `${channelMember.user.username}${channelMember.nickname ? ` (${channelMember.nickname})` : ''}`,
+							value: channelMember.user.username,
+						}))
+						.slice(0, 25); // Discord limits to 25 choices
+					
+					await interaction.respond(choices);
+					return;
+				}
+				
 				// Use cached members for faster autocomplete
 				const cachedMembers = interaction.guild.members.cache;
 				
@@ -500,6 +543,112 @@ module.exports = {
 				await interaction.reply({
 					content: 'Failed to unlock the channel. Please try again later.',
 					flags: MessageFlags.Ephemeral,
+				});
+			}
+		}
+		else if (subcommand === 'transfer') {
+			// Defer the reply since searching members can take time
+			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+			// Get the username to transfer to
+			const username = interaction.options.getString('username').trim();
+
+			// Get the maps from interactionCreate
+			const interactionCreateModule = require('../events/interactionCreate.js');
+			const createdChannels = interactionCreateModule.createdChannels;
+
+			// Check if user is in a voice channel
+			if (!interaction.member.voice.channel) {
+				await interaction.editReply({
+					content: 'You must be in a voice channel to use this command!',
+				});
+				return;
+			}
+
+			const channelId = interaction.member.voice.channel.id;
+
+			// Check if this is a channel they created
+			if (!createdChannels.has(channelId)) {
+				await interaction.editReply({
+					content: 'You can only transfer ownership of channels that you created!',
+				});
+				return;
+			}
+
+			const channelData = createdChannels.get(channelId);
+			if (channelData.creatorId !== interaction.user.id) {
+				await interaction.editReply({
+					content: 'You can only transfer ownership of channels that you created!',
+				});
+				return;
+			}
+
+			try {
+				// Search for the user by username
+				const members = await interaction.guild.members.fetch({ query: username, limit: 10 });
+				
+				let targetMember = members.first();
+				
+				if (!targetMember) {
+					// Try searching in cache as fallback
+					targetMember = interaction.guild.members.cache.find(member => 
+						member.user.username.toLowerCase().includes(username.toLowerCase()) ||
+						member.user.tag.toLowerCase().includes(username.toLowerCase()) ||
+						(member.nickname && member.nickname.toLowerCase().includes(username.toLowerCase()))
+					);
+				}
+
+				if (!targetMember) {
+					await interaction.editReply({
+						content: `Could not find a user matching "${username}". Try being more specific!`,
+					});
+					return;
+				}
+
+				// Don't allow transferring to yourself
+				if (targetMember.id === interaction.user.id) {
+					await interaction.editReply({
+						content: 'You already own this channel!',
+					});
+					return;
+				}
+
+				// Verify the new owner is in the channel
+				if (!targetMember.voice.channel || targetMember.voice.channel.id !== channelId) {
+					await interaction.editReply({
+						content: `**${targetMember.user.tag}** must be in the channel to transfer ownership!`,
+					});
+					return;
+				}
+
+				// Update the channel data with the new owner
+				channelData.creatorId = targetMember.id;
+				console.log(`[VOICE] Transferred ownership of "${channelData.channelName}" from ${interaction.user.tag} to ${targetMember.user.tag}`);
+
+				// Update channel permissions for the new owner
+				await interaction.member.voice.channel.permissionOverwrites.create(targetMember.id, {
+					Connect: true,
+					Speak: true,
+					ManageChannels: true,
+					MoveMembers: true,
+				});
+
+				// Send DM to the new owner
+				try {
+					await targetMember.send(`You are now the owner of the voice channel **${channelData.channelName}**! You can use the /voice commands to manage it.`);
+				}
+				catch (dmError) {
+					console.log(`[VOICE] Could not DM ${targetMember.user.tag} about ownership transfer`);
+				}
+
+				await interaction.editReply({
+					content: `✅ Successfully transferred ownership of **${channelData.channelName}** to **${targetMember.user.tag}**!`,
+				});
+			}
+			catch (error) {
+				console.error('[VOICE] Error transferring channel ownership:', error);
+				await interaction.editReply({
+					content: 'Failed to transfer ownership. Please try again later.',
 				});
 			}
 		}

@@ -56,13 +56,14 @@ module.exports = {
 						}
 					}
 					else if (channel && channel.members.size > 0) {
-						// Channel is not empty, check if the owner left
+						// Channel is not empty, check if the owner left or switched channels
 						const channelData = createdChannels.get(channelId);
 						
-						// Check if the user who left was the owner
-						if (oldState.member.id === channelData.creatorId) {
-							// Owner left but there are still people in the channel
-							console.log(`[VOICE] Channel owner left "${channelData.channelName}" with ${channel.members.size} members remaining`);
+						// Check if the user who left was the owner and they're not still in this channel
+						if (oldState.member.id === channelData.creatorId && (!newState.channel || newState.channel.id !== channelId)) {
+							// Owner left or switched to a different channel but there are still people in the channel
+							const action = newState.channel ? 'switched channels from' : 'left';
+							console.log(`[VOICE] Channel owner ${action} "${channelData.channelName}" with ${channel.members.size} members remaining`);
 							
 							// Get the list of remaining members
 							const remainingMembers = Array.from(channel.members.values())
