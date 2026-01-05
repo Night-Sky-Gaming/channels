@@ -366,10 +366,14 @@ module.exports = {
 				}
 				catch (error) {
 					console.error('[VOICE] Error transferring channel ownership:', error);
-					await interaction.reply({
-						content: 'There was an error transferring ownership. Please try again.',
-						flags: MessageFlags.Ephemeral,
-					});
+					// Use update instead of reply since this is a select menu interaction
+					if (!interaction.replied && !interaction.deferred) {
+						await interaction.update({
+							content: 'There was an error transferring ownership. Please try again.',
+							embeds: [],
+							components: [],
+						}).catch(err => console.error('[VOICE] Failed to update interaction:', err));
+					}
 				}
 			}
 		}
