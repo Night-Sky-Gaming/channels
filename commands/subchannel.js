@@ -54,9 +54,16 @@ module.exports = {
 
 			// Find the + role for embed permissions
 			const plusRole = interaction.guild.roles.cache.find(role => role.name === '+');
+			// Find the member role for join permissions
+			const memberRole = interaction.guild.roles.cache.find(role => role.name === 'member');
 			
 			// Build permission overwrites
 			const permissionOverwrites = [
+				{
+					id: interaction.guild.id, // @everyone
+					deny: [PermissionFlagsBits.Connect],
+					allow: [PermissionFlagsBits.ViewChannel],
+				},
 				{
 					id: interaction.user.id,
 					allow: [
@@ -67,6 +74,14 @@ module.exports = {
 					],
 				},
 			];
+			
+			// Add member role permissions if the role exists
+			if (memberRole) {
+				permissionOverwrites.push({
+					id: memberRole.id,
+					allow: [PermissionFlagsBits.Connect],
+				});
+			}
 			
 			// Add + role permissions if the role exists
 			if (plusRole) {

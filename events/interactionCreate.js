@@ -126,9 +126,16 @@ module.exports = {
 
 				// Find the + role for embed permissions
 				const plusRole = guild.roles.cache.find(role => role.name === '+');
+				// Find the member role for join permissions
+				const memberRole = guild.roles.cache.find(role => role.name === 'member');
 				
 				// Build permission overwrites
 				const permissionOverwrites = [
+					{
+						id: guild.id, // @everyone
+						deny: [PermissionFlagsBits.Connect],
+						allow: [PermissionFlagsBits.ViewChannel],
+					},
 					{
 						id: member.id,
 						allow: [
@@ -139,6 +146,14 @@ module.exports = {
 						],
 					},
 				];
+				
+				// Add member role permissions if the role exists
+				if (memberRole) {
+					permissionOverwrites.push({
+						id: memberRole.id,
+						allow: [PermissionFlagsBits.Connect],
+					});
+				}
 				
 				// Add + role permissions if the role exists
 				if (plusRole) {
@@ -419,9 +434,16 @@ module.exports = {
 
 				// Find the + role for embed permissions
 				const plusRole = guild.roles.cache.find(role => role.name === '+');
+				// Find the member role for join permissions
+				const memberRole = guild.roles.cache.find(role => role.name === 'member');
 				
 				// Build permission overwrites
 				const permissionOverwrites = [
+					{
+						id: guild.id, // @everyone
+						deny: [PermissionFlagsBits.Connect],
+						allow: [PermissionFlagsBits.ViewChannel],
+					},
 					{
 						id: member.id,
 						allow: [
@@ -432,6 +454,14 @@ module.exports = {
 						],
 					},
 				];
+				
+				// Add member role permissions if the role exists
+				if (memberRole) {
+					permissionOverwrites.push({
+						id: memberRole.id,
+						allow: [PermissionFlagsBits.Connect],
+					});
+				}
 				
 				// Add + role permissions if the role exists
 				if (plusRole) {
