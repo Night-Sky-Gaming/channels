@@ -127,7 +127,7 @@ module.exports = {
 				// Find the + role for embed permissions
 				const plusRole = guild.roles.cache.find(role => role.name === '+');
 				// Find the member role for join permissions
-				const memberRole = guild.roles.cache.find(role => role.name === 'member');
+				const memberRole = guild.roles.cache.find(role => role.name === 'Member');
 				
 				// Build permission overwrites
 				const permissionOverwrites = [
@@ -151,7 +151,10 @@ module.exports = {
 				if (memberRole) {
 					permissionOverwrites.push({
 						id: memberRole.id,
-						allow: [PermissionFlagsBits.Connect],
+						allow: [
+							PermissionFlagsBits.Connect,
+							PermissionFlagsBits.Speak,
+						],
 					});
 				}
 				
@@ -435,7 +438,7 @@ module.exports = {
 				// Find the + role for embed permissions
 				const plusRole = guild.roles.cache.find(role => role.name === '+');
 				// Find the member role for join permissions
-				const memberRole = guild.roles.cache.find(role => role.name === 'member');
+				const memberRole = guild.roles.cache.find(role => role.name === 'Member');
 				
 				// Build permission overwrites
 				const permissionOverwrites = [
@@ -459,7 +462,10 @@ module.exports = {
 				if (memberRole) {
 					permissionOverwrites.push({
 						id: memberRole.id,
-						allow: [PermissionFlagsBits.Connect],
+						allow: [
+							PermissionFlagsBits.Connect,
+							PermissionFlagsBits.Speak,
+						],
 					});
 				}
 				
